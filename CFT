@@ -1,0 +1,439 @@
+-- [[ HIVE V70.1 SURGICAL - PART 1 ]] --
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+
+-- GLOBAL HIVE ENGINE
+_G.Hive = {
+    Running = true,
+    BoxUpgrader = false,
+    AutoSellEnabled = false,
+    AutoSellLimit = 10,
+    IsSelling = false, -- Prevents overlapping sell loops
+    AutoUpgrade = false,
+    HourlyReward = false,
+    BotKill = false,
+    GunName = "Deagle",
+    InvisibleSippa = false,
+    VisibleSippa = false,
+    AirdropSniper = false,
+    DiscordLink = "https://discord.gg/FFGjjcwwS",
+    MyTycoon = nil
+}
+
+task.spawn(function()
+    while _G.Hive.Running do
+        task.wait(2)
+        if not _G.Hive.MyTycoon then
+            local tycoons = workspace:FindFirstChild("Tycoons")
+            if tycoons then
+                for _, t in pairs(tycoons:GetChildren()) do
+                    local claimer = t:FindFirstChild("TycoonClaimer", true)
+                    if claimer and claimer:FindFirstChild("TextLabel", true) and claimer:FindFirstChild("TextLabel", true).Text:find(LocalPlayer.DisplayName) then
+                        _G.Hive.MyTycoon = t
+                        warn("⚓ HIVE LOCKED ONTO TYCOON: " .. t.Name)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end)
+
+for _, v in pairs(LocalPlayer.PlayerGui:GetChildren()) do if v.Name:find("Hive") or v.Name:find("Ozone") then v:Destroy() end end
+
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
+ScreenGui.Name, ScreenGui.ResetOnSpawn = "HiveV70_Master", false
+ScreenGui.IgnoreGuiInset = true 
+
+local Theme = {
+    Space = Color3.fromRGB(10, 10, 15),
+    Text = Color3.fromRGB(220, 220, 220),
+    Accent = Color3.fromRGB(150, 0, 255), 
+    PanelSize = UDim2.new(0, 580, 0, 400),
+    ButtonTrans = 0.6,
+    PanelTrans = 0.25
+}
+
+-- UI FACTORIES
+local function CreateToggle(parent, text, callback)
+    local Enabled = false
+    local b = Instance.new("TextButton", parent)
+    b.Size, b.BackgroundColor3 = UDim2.new(1, -10, 0, 45), Color3.fromRGB(30, 30, 40)
+    b.BackgroundTransparency, b.Text, b.TextColor3, b.TextSize = Theme.ButtonTrans, "   " .. text, Theme.Text, 15
+    b.Font, b.TextXAlignment, b.ZIndex = Enum.Font.GothamMedium, Enum.TextXAlignment.Left, 400
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIStroke", b).Color = Color3.new(1, 1, 1)
+
+    local Track = Instance.new("Frame", b)
+    Track.Size, Track.Position = UDim2.new(0, 42, 0, 22), UDim2.new(1, -55, 0.5, 0)
+    Track.AnchorPoint, Track.BackgroundColor3, Track.ZIndex = Vector2.new(0, 0.5), Color3.fromRGB(180, 40, 40), 401
+    Instance.new("UICorner", Track).CornerRadius = UDim.new(1, 0)
+
+    local Knob = Instance.new("Frame", Track)
+    Knob.Size, Knob.Position = UDim2.new(0, 16, 0, 16), UDim2.new(0, 3, 0.5, 0) 
+    Knob.AnchorPoint, Knob.BackgroundColor3, Knob.ZIndex = Vector2.new(0, 0.5), Color3.new(1, 1, 1), 402
+    Instance.new("UICorner", Knob).CornerRadius = UDim.new(1, 0)
+
+    b.MouseButton1Click:Connect(function()
+        Enabled = not Enabled
+        TweenService:Create(Track, TweenInfo.new(0.3), {BackgroundColor3 = Enabled and Color3.fromRGB(150, 40, 255) or Color3.fromRGB(180, 40, 40)}):Play()
+        TweenService:Create(Knob, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = Enabled and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)}):Play()
+        callback(Enabled)
+    end)
+end
+
+local function CreateSlider(parent, text, min, max, default, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size, frame.BackgroundColor3, frame.BackgroundTransparency = UDim2.new(1, -10, 0, 50), Color3.fromRGB(30, 30, 40), Theme.ButtonTrans
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    local label = Instance.new("TextLabel", frame)
+    label.Size, label.Position, label.BackgroundTransparency = UDim2.new(1, -20, 0, 20), UDim2.new(0, 10, 0, 5), 1
+    label.Text, label.TextColor3, label.Font, label.TextSize = text .. ": " .. default, Theme.Text, Enum.Font.GothamMedium, 14
+    label.TextXAlignment, label.ZIndex = Enum.TextXAlignment.Left, 400
+    local sliderBar = Instance.new("Frame", frame)
+    sliderBar.Size, sliderBar.Position, sliderBar.BackgroundColor3, sliderBar.ZIndex = UDim2.new(1, -30, 0, 4), UDim2.new(0, 15, 1, -15), Color3.fromRGB(60, 60, 70), 400
+    local fill = Instance.new("Frame", sliderBar)
+    local startPos = (default - min) / (max - min)
+    fill.Size, fill.BackgroundColor3, fill.ZIndex = UDim2.new(startPos, 0, 1, 0), Theme.Accent, 401
+    local trigger = Instance.new("TextButton", sliderBar)
+    trigger.Size, trigger.Position, trigger.BackgroundTransparency, trigger.ZIndex, trigger.Text = UDim2.new(1, 20, 1, 20), UDim2.new(0, -10, 0, -10), 1, 405, ""
+
+    local dragging = false
+    local function Update(input)
+        local pos = math.clamp((input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X, 0, 1)
+        local val = math.floor(min + (max - min) * pos)
+        fill.Size = UDim2.new(pos, 0, 1, 0); label.Text = text .. ": " .. val; callback(val)
+    end
+    trigger.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true; Update(i) end end)
+    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+    UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then Update(i) end end)
+end
+
+local function CreateInput(parent, text, defaultText, callback)
+    local frame = Instance.new("Frame", parent)
+    frame.Size, frame.BackgroundColor3, frame.BackgroundTransparency = UDim2.new(1, -10, 0, 45), Color3.fromRGB(30, 30, 40), Theme.ButtonTrans
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    local label = Instance.new("TextLabel", frame)
+    label.Size, label.Position, label.BackgroundTransparency = UDim2.new(0.4, 0, 1, 0), UDim2.new(0, 15, 0, 0), 1
+    label.Text, label.TextColor3, label.Font, label.TextSize = text, Theme.Text, Enum.Font.GothamMedium, 14
+    label.TextXAlignment, label.ZIndex = Enum.TextXAlignment.Left, 400
+    local box = Instance.new("TextBox", frame)
+    box.Size, box.Position, box.BackgroundColor3, box.TextColor3 = UDim2.new(0.5, 0, 0, 25), UDim2.new(0.45, 0, 0.5, -12.5), Color3.fromRGB(15, 15, 20), Theme.Accent
+    box.Font, box.TextSize, box.Text, box.ZIndex = Enum.Font.GothamBold, 13, defaultText, 401
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4); Instance.new("UIStroke", box).Color = Color3.new(1,1,1)
+    box.FocusLost:Connect(function() callback(box.Text) end)
+end
+
+local function CreateTextInfo(parent, text, bold)
+    local l = Instance.new("TextLabel", parent)
+    l.Size, l.BackgroundTransparency = UDim2.new(1, -20, 0, 30), 1
+    l.Font, l.Text, l.TextColor3, l.TextSize, l.TextXAlignment, l.ZIndex = bold and Enum.Font.GothamBold or Enum.Font.Gotham, "  " .. text, Theme.Text, 14, Enum.TextXAlignment.Left, 400
+end
+
+local WorldThemes = {
+    ["👤"] = {Col1 = Color3.fromRGB(0, 180, 255), Name = "PLAYER"}, 
+    ["💰"] = {Col1 = Color3.fromRGB(255, 200, 0), Name = "FARM"},
+    ["🗺️"] = {Col1 = Color3.fromRGB(50, 255, 100), Name = "WORLD"},
+    ["🥊"] = {Col1 = Color3.fromRGB(255, 50, 50), Name = "PVP"},
+    ["📜"] = {Col1 = Color3.fromRGB(200, 200, 200), Name = "INFO"},
+    ["🌟"] = {Col1 = Color3.fromRGB(255, 100, 255), Name = "EXTRA"},
+    ["⚙️"] = {Col1 = Color3.fromRGB(120, 130, 150), Name = "SETTINGS"}
+}
+
+local MainGroup = Instance.new("Frame", ScreenGui)
+MainGroup.Size, MainGroup.BackgroundTransparency, MainGroup.Visible = UDim2.new(1, 0, 1, 0), 1, true
+
+local CategoryPanel = Instance.new("Frame", ScreenGui)
+CategoryPanel.Size, CategoryPanel.Position = UDim2.new(0, 0, 0, 0), UDim2.new(0.5, 0, 0.48, 0)
+CategoryPanel.AnchorPoint, CategoryPanel.BackgroundColor3 = Vector2.new(0.5, 0.5), Theme.Space
+CategoryPanel.Visible, CategoryPanel.ZIndex, CategoryPanel.ClipsDescendants = false, 300, true
+CategoryPanel.BackgroundTransparency = Theme.PanelTrans 
+Instance.new("UICorner", CategoryPanel).CornerRadius = UDim.new(0, 12)
+Instance.new("UIStroke", CategoryPanel).Color = Theme.Accent
+
+local StarField = Instance.new("Frame", CategoryPanel)
+StarField.Size, StarField.BackgroundTransparency, StarField.ZIndex = UDim2.new(1, 0, 1, 0), 1, 301
+local StaticStars = {}
+for i = 1, 100 do
+    local s = Instance.new("Frame", StarField)
+    s.Size, s.Position = UDim2.new(0, math.random(1, 2), 0, math.random(1, 2)), UDim2.new(math.random(), 0, math.random(), 0)
+    s.BackgroundColor3, s.ZIndex, s.BorderSizePixel = Color3.new(1, 1, 1), 302, 0
+    Instance.new("UICorner", s).CornerRadius = UDim.new(1, 0)
+    table.insert(StaticStars, {Frame = s, Speed = math.random(5, 15) / 1000})
+end
+
+local ViewportContainer = Instance.new("Frame", CategoryPanel)
+ViewportContainer.Size, ViewportContainer.Position, ViewportContainer.BackgroundTransparency, ViewportContainer.ZIndex = UDim2.new(0, 230, 0, 260), UDim2.new(0, 15, 0, 20), 1, 310
+local ViewportFrame = Instance.new("ViewportFrame", ViewportContainer)
+ViewportFrame.Size, ViewportFrame.BackgroundTransparency, ViewportFrame.ZIndex = UDim2.new(1, 0, 1, 0), 1, 311
+
+local TabFolders = {}
+for _, data in pairs(WorldThemes) do
+    local f = Instance.new("ScrollingFrame", CategoryPanel)
+    f.Name, f.Visible, f.BackgroundTransparency = data.Name, false, 1
+    f.Size, f.Position = (data.Name == "PLAYER") and UDim2.new(1, -260, 1, -40) or UDim2.new(1, -40, 1, -40), (data.Name == "PLAYER") and UDim2.new(0, 245, 0, 20) or UDim2.new(0, 20, 0, 20)
+    f.ScrollBarThickness, f.ZIndex = 2, 350
+    local layout = Instance.new("UIListLayout", f)
+    layout.Padding = UDim.new(0, 10)
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() f.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 20) end)
+    TabFolders[data.Name] = f
+end
+
+local function UpdateViewport()
+    ViewportFrame:ClearAllChildren()
+    if not LocalPlayer.Character then return end
+    local WorldModel = Instance.new("WorldModel", ViewportFrame)
+    LocalPlayer.Character.Archivable = true
+    local CharClone = LocalPlayer.Character:Clone()
+    CharClone.Parent = WorldModel
+    local Cam = Instance.new("Camera", ViewportFrame)
+    Cam.FieldOfView = 35 
+    local hrp = CharClone:FindFirstChild("HumanoidRootPart")
+    if hrp then Cam.CFrame = CFrame.new(hrp.Position + (hrp.CFrame.LookVector * 5.5) + Vector3.new(0, 1.5, 0), hrp.Position + Vector3.new(0, 1.5, 0)); ViewportFrame.CurrentCamera = Cam end
+end
+-- [[ HIVE V70.1 SURGICAL - PART 2 ]] --
+
+local function SellAllBoxes(tycoon)
+    local boxFolder = tycoon:FindFirstChild("FullBoxes", true)
+    local sellPad = workspace:FindFirstChild("BoxDropoffs") and workspace.BoxDropoffs:FindFirstChild("Dropoff1") and workspace.BoxDropoffs.Dropoff1:FindFirstChild("PayPart")
+    if boxFolder and sellPad then
+        for _, box in pairs(boxFolder:GetChildren()) do
+            local part = box:IsA("BasePart") and box or box:FindFirstChildWhichIsA("BasePart", true)
+            if part then part.CFrame = sellPad.CFrame; firetouchinterest(part, sellPad, 0); task.wait(0.05); firetouchinterest(part, sellPad, 1) end
+        end
+    end
+end
+
+-- 📌 TABS
+CreateToggle(TabFolders["PLAYER"], "Invisible Sippa", function(s) _G.Hive.InvisibleSippa = s end)
+CreateToggle(TabFolders["PLAYER"], "Visible Sippa", function(s) _G.Hive.VisibleSippa = s end)
+
+CreateToggle(TabFolders["FARM"], "Box Upgrader (2.7s Tracker)", function(s) _G.Hive.BoxUpgrader = s end)
+CreateToggle(TabFolders["FARM"], "Auto-Sell Boxes (5s Delay)", function(s) _G.Hive.AutoSellEnabled = s end)
+CreateSlider(TabFolders["FARM"], "Auto-Sell Limit", 1, 32, 10, function(v) _G.Hive.AutoSellLimit = v end)
+local SellAllBtn = Instance.new("TextButton", TabFolders["FARM"])
+SellAllBtn.Size, SellAllBtn.BackgroundColor3, SellAllBtn.BackgroundTransparency = UDim2.new(1, -10, 0, 45), Color3.fromRGB(200, 150, 0), Theme.ButtonTrans
+SellAllBtn.Text, SellAllBtn.TextColor3, SellAllBtn.Font, SellAllBtn.ZIndex = "SELL ALL BOXES NOW", Color3.new(1,1,1), Enum.Font.GothamBold, 400
+Instance.new("UICorner", SellAllBtn).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", SellAllBtn).Color = Color3.new(1, 1, 1)
+SellAllBtn.MouseButton1Click:Connect(function() if _G.Hive.MyTycoon then SellAllBoxes(_G.Hive.MyTycoon) end end)
+CreateToggle(TabFolders["FARM"], "Auto-Upgrade Tycoon", function(s) _G.Hive.AutoUpgrade = s end)
+CreateToggle(TabFolders["FARM"], "Auto-Claim Hourly Reward", function(s) _G.Hive.HourlyReward = s end)
+
+CreateToggle(TabFolders["WORLD"], "Airdrop Claimer (Ghost TP)", function(s) _G.Hive.AirdropSniper = s end)
+
+CreateInput(TabFolders["PVP"], "Gun Name:", "Deagle", function(val) _G.Hive.GunName = val end)
+CreateToggle(TabFolders["PVP"], "Auto-Kill Bots", function(s) _G.Hive.BotKill = s end)
+
+CreateTextInfo(TabFolders["INFO"], "HIVE SYSTEM: ONLINE", true)
+CreateTextInfo(TabFolders["INFO"], "TARGET: COUNTERFEIT TYCOON", false)
+CreateTextInfo(TabFolders["INFO"], "PATCH: V70.1 SURGICAL FIXES", false)
+
+CreateTextInfo(TabFolders["EXTRA"], "DEVELOPED BY: Fkdaf3dz", true)
+CreateTextInfo(TabFolders["EXTRA"], "FRAMEWORK: HIVE ARCHITECTURE", false)
+
+local DiscordBtn = Instance.new("TextButton", TabFolders["EXTRA"])
+DiscordBtn.Size, DiscordBtn.BackgroundColor3, DiscordBtn.BackgroundTransparency = UDim2.new(1, -10, 0, 45), Color3.fromRGB(88, 101, 242), Theme.ButtonTrans
+DiscordBtn.Text, DiscordBtn.TextColor3, DiscordBtn.Font, DiscordBtn.ZIndex = "COPY DISCORD LINK", Color3.new(1,1,1), Enum.Font.GothamBold, 400
+Instance.new("UICorner", DiscordBtn).CornerRadius = UDim.new(0, 8)
+DiscordBtn.MouseButton1Click:Connect(function()
+    if setclipboard then 
+        setclipboard(_G.Hive.DiscordLink) 
+        DiscordBtn.Text = "COPIED TO CLIPBOARD!"
+        task.wait(2)
+        DiscordBtn.Text = "COPY DISCORD LINK"
+    else
+        DiscordBtn.Text = "EXPLOIT DOES NOT SUPPORT COPY"
+    end
+end)
+
+local KillBtn = Instance.new("TextButton", TabFolders["SETTINGS"])
+KillBtn.Size, KillBtn.BackgroundColor3, KillBtn.BackgroundTransparency = UDim2.new(1, -10, 0, 45), Color3.fromRGB(180, 40, 40), Theme.ButtonTrans
+KillBtn.Text, KillBtn.TextColor3, KillBtn.Font, KillBtn.ZIndex = "DESTROY HIVE GUI", Color3.new(1,1,1), Enum.Font.GothamBold, 400
+Instance.new("UICorner", KillBtn).CornerRadius = UDim.new(0, 8)
+KillBtn.MouseButton1Click:Connect(function() _G.Hive.Running = false; ScreenGui:Destroy() end)
+
+-- 🧠 MASTER HIVE LOOP
+local lastInvSippa, lastVisSippa, lastReward = 0, 0, 0
+task.spawn(function()
+    while _G.Hive.Running do
+        task.wait(0.1)
+        local t = tick()
+        
+        -- 1. BOX UPGRADER (Direct CFrame Teleport after 2.7s)
+        if _G.Hive.BoxUpgrader and _G.Hive.MyTycoon then
+            local boxes = _G.Hive.MyTycoon:FindFirstChild("FullBoxes", true)
+            local machine = _G.Hive.MyTycoon:FindFirstChild("Colorizer1", true)
+            local upTarget = machine and machine:FindFirstChild("UpgradePart")
+            if boxes and upTarget then
+                for _, b in pairs(boxes:GetChildren()) do
+                    if not b:GetAttribute("HiveTracked") then
+                        b:SetAttribute("HiveTracked", true) 
+                        task.spawn(function()
+                            task.wait(2.7) 
+                            local p = b:IsA("BasePart") and b or b:FindFirstChildWhichIsA("BasePart", true)
+                            if p and p.Parent and _G.Hive.BoxUpgrader then
+                                p.CFrame = upTarget.CFrame
+                                firetouchinterest(p, upTarget, 0); task.wait(0.05); firetouchinterest(p, upTarget, 1)
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+        
+        -- 2. AUTO-SELL (With 5s Delay)
+        if _G.Hive.AutoSellEnabled and _G.Hive.MyTycoon then
+            local boxes = _G.Hive.MyTycoon:FindFirstChild("FullBoxes", true)
+            if boxes and #boxes:GetChildren() >= _G.Hive.AutoSellLimit and not _G.Hive.IsSelling then
+                _G.Hive.IsSelling = true
+                task.spawn(function()
+                    task.wait(5) -- Waits 5s for the last boxes to finish Colorizer
+                    if _G.Hive.AutoSellEnabled then SellAllBoxes(_G.Hive.MyTycoon) end
+                    _G.Hive.IsSelling = false
+                end)
+            end
+        end
+        
+        -- 3. HOURLY REWARDS (RemoteFunction FIX)
+        if _G.Hive.HourlyReward and (t - lastReward >= 10) then
+            local remote = game:GetService("ReplicatedStorage"):FindFirstChild("ClaimHourlyReward")
+            if remote then
+                if remote:IsA("RemoteFunction") then
+                    task.spawn(function() pcall(function() remote:InvokeServer() end) end)
+                elseif remote:IsA("RemoteEvent") then
+                    remote:FireServer()
+                end
+            end
+            lastReward = tick()
+        end
+
+        -- 4. AUTO UPGRADE HUD
+        if _G.Hive.AutoUpgrade then
+            local shop = LocalPlayer.PlayerGui:FindFirstChild("TheUI")
+            if shop then
+                local tycoonFrame = shop:FindFirstChild("tycoonFrame", true)
+                if tycoonFrame and tycoonFrame.Visible then
+                    local scroll = tycoonFrame:FindFirstChild("ScrollingFrame", true)
+                    if scroll then
+                        for _, btn in pairs(scroll:GetDescendants()) do
+                            if (btn.Name:lower():find("buy") or btn.Name == "Button") and btn:IsA("GuiButton") and btn.Visible then
+                                if getconnections then for _, c in pairs(getconnections(btn.MouseButton1Click)) do c:Fire() end end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 5. SIPPAS
+        if _G.Hive.InvisibleSippa and (t - lastInvSippa >= 0.8) then
+            local bp, ch = LocalPlayer.Backpack, LocalPlayer.Character
+            local cola = bp:FindFirstChild("BloxyCola") or (ch and ch:FindFirstChild("BloxyCola"))
+            if cola and ch then cola.Parent = ch; cola:Activate(); cola.Parent = bp; lastInvSippa = tick() end
+        end
+        if _G.Hive.VisibleSippa and (t - lastVisSippa >= 0.8) then
+            local bp, ch = LocalPlayer.Backpack, LocalPlayer.Character
+            local cola = bp:FindFirstChild("BloxyCola") or (ch and ch:FindFirstChild("BloxyCola"))
+            if cola and ch then cola.Parent = ch; cola:Activate(); task.delay(0.8, function() cola:Deactivate() end); lastVisSippa = tick() end
+        end
+        
+        -- 6. BOT KILLER
+        if _G.Hive.BotKill and _G.Hive.MyTycoon then
+            local npcs = _G.Hive.MyTycoon:FindFirstChild("ActiveNpcs", true)
+            local tool = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(_G.Hive.GunName)) or LocalPlayer.Backpack:FindFirstChild(_G.Hive.GunName)
+            if tool and npcs then
+                for _, n in pairs(npcs:GetChildren()) do
+                    local h, hum = n:FindFirstChild("Head"), n:FindFirstChildWhichIsA("Humanoid")
+                    if h and hum and hum.Health > 0 then game.ReplicatedStorage.GunFire:FireServer(tool.Name, tool, h.Position, h.Position, h) end
+                end
+            end
+        end
+        
+        -- 7. AIRDROP GHOST TP (Anti-Cheat Bypass)
+        if _G.Hive.AirdropSniper and LocalPlayer.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local nodes = workspace:FindFirstChild("AirdropNodes")
+            if hrp and nodes then
+                for _, prompt in pairs(nodes:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.Parent and prompt.Parent:IsA("BasePart") then
+                        local origCFrame = hrp.CFrame
+                        hrp.Anchored = true -- Prevents velocity spikes
+                        hrp.CFrame = prompt.Parent.CFrame + Vector3.new(0, 3, 0)
+                        task.wait(0.2)
+                        fireproximityprompt(prompt)
+                        task.wait(0.2)
+                        hrp.CFrame = origCFrame
+                        hrp.Anchored = false
+                        task.wait(5) 
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- INTERACTION UI
+local OrbitActive, Dragging, DragMoved, BasePos, DragStart, StartPos = false, false, false, UDim2.new(0.5, 0, 0.48, 0), nil, nil
+local Core = Instance.new("TextButton", MainGroup)
+Core.Size, Core.Position, Core.BackgroundTransparency, Core.Text, Core.TextSize, Core.ZIndex, Core.AnchorPoint = UDim2.new(0, 90, 0, 90), BasePos, 1, "🌎", 75, 200, Vector2.new(0.5, 0.5)
+
+local Planets = {}
+for icon, data in pairs(WorldThemes) do
+    local P = Instance.new("TextButton", MainGroup)
+    P.Size, P.AnchorPoint, P.BackgroundColor3, P.Text, P.Font, P.TextSize, P.ZIndex, P.Visible = UDim2.new(0, 0, 0, 0), Vector2.new(0.5, 0.5), data.Col1, icon, Enum.Font.GothamBold, 28, 150, false
+    Instance.new("UICorner", P).CornerRadius = UDim.new(1, 0)
+    local Proxy = Instance.new("NumberValue", P)
+    P.MouseButton1Click:Connect(function()
+        if DragMoved then return end
+        MainGroup.Visible, CategoryPanel.Visible = false, true
+        CategoryPanel:FindFirstChild("UIStroke").Color = data.Col1
+        ViewportContainer.Visible = (data.Name == "PLAYER")
+        for name, folder in pairs(TabFolders) do folder.Visible = (name == data.Name) end
+        if data.Name == "PLAYER" then UpdateViewport() end
+        CategoryPanel:TweenSize(Theme.PanelSize, "Out", "Back", 0.5, true)
+    end)
+    table.insert(Planets, {Btn = P, Proxy = Proxy})
+end
+
+local CloseBtn = Instance.new("TextButton", CategoryPanel)
+CloseBtn.Size, CloseBtn.Position, CloseBtn.BackgroundColor3, CloseBtn.Text, CloseBtn.Font, CloseBtn.TextSize, CloseBtn.TextColor3, CloseBtn.ZIndex = UDim2.new(0, 35, 0, 35), UDim2.new(1, -45, 0, 10), Color3.fromRGB(220, 50, 50), "X", Enum.Font.GothamBold, 16, Color3.new(1,1,1), 1000
+Instance.new("UICorner", CloseBtn)
+CloseBtn.MouseButton1Click:Connect(function() CategoryPanel:TweenSize(UDim2.new(0,0,0,0), "In", "Quad", 0.3, true, function() CategoryPanel.Visible, MainGroup.Visible = false, true end) end)
+
+RunService.RenderStepped:Connect(function(dt)
+    local t = tick()
+    local targetPos = OrbitActive and UDim2.new(0.5, 0, 0.48, 0) or BasePos
+    Core.Position = Core.Position:Lerp(UDim2.new(targetPos.X.Scale, targetPos.X.Offset, targetPos.Y.Scale, targetPos.Y.Offset + math.sin(t*2)*10), dt*10)
+    for i, p in ipairs(Planets) do
+        if p.Btn.Visible then
+            local angle = (t * 0.5) + (i * (math.pi * 2 / #Planets))
+            local sA, dist = math.sin(angle), (220 + (math.sin(angle) * 50)) * p.Proxy.Value
+            p.Btn.Size = UDim2.new(0, (68 + (sA * 18)) * p.Proxy.Value, 0, (68 + (sA * 18)) * p.Proxy.Value)
+            p.Btn.Position = UDim2.new(Core.Position.X.Scale, Core.Position.X.Offset + (math.cos(angle)*dist), Core.Position.Y.Scale, Core.Position.Y.Offset + (sA*dist*0.45))
+        end
+    end
+    if CategoryPanel.Visible then
+        for _, s in ipairs(StaticStars) do
+            local nX = s.Frame.Position.X.Scale - (s.Speed * dt)
+            s.Frame.Position = UDim2.new(nX < 0 and 1 or nX, 0, s.Frame.Position.Y.Scale, 0)
+        end
+    end
+end)
+
+Core.InputBegan:Connect(function(i) if (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) and not OrbitActive then Dragging, DragMoved, DragStart, StartPos = true, false, i.Position, BasePos end end)
+UserInputService.InputChanged:Connect(function(i) if Dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - DragStart; if d.Magnitude > 3 then DragMoved = true end; BasePos = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + d.X, StartPos.Y.Scale, StartPos.Y.Offset + d.Y) end end)
+UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then Dragging = false end end)
+Core.MouseButton1Click:Connect(function()
+    if DragMoved then return end
+    OrbitActive = not OrbitActive
+    for _, p in ipairs(Planets) do
+        if OrbitActive then p.Btn.Visible = true; TweenService:Create(p.Proxy, TweenInfo.new(0.6, Enum.EasingStyle.Back), {Value = 1}):Play()
+        else local tw = TweenService:Create(p.Proxy, TweenInfo.new(0.3), {Value = 0}); tw:Play(); tw.Completed:Connect(function() if not OrbitActive then p.Btn.Visible = false end end) end
+    end
+end)
+
+print("🐝 HIVE V70.1 COMPLETE: Ghost TP & 5s Sell Delay Active.")
+
