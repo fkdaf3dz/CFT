@@ -1,27 +1,66 @@
--- [[ HIVE V70.1 SURGICAL - PART 1 ]] --
+-- [[ HIVE V71 AUTONOMOUS MASTER SCRIPT - PART 1 ]] --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 
--- GLOBAL HIVE ENGINE
+-- [[ 🛡️ ANTI-AFK PROTOCOL ]] --
+LocalPlayer.Idled:Connect(function()
+	VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+	task.wait(1)
+	VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+end)
+
+local afkGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+afkGui.Name = "AFK_Notice"
+local afkFrame = Instance.new("Frame", afkGui)
+afkFrame.Size, afkFrame.Position, afkFrame.AnchorPoint = UDim2.new(0, 560, 0, 60), UDim2.new(0.5, 0, 0, -150), Vector2.new(0.5, 0)
+afkFrame.BackgroundColor3, afkFrame.ZIndex = Color3.fromRGB(70, 90, 70), 10
+Instance.new("UICorner", afkFrame).CornerRadius = UDim.new(0, 12)
+local afkStroke = Instance.new("UIStroke", afkFrame)
+afkStroke.Color, afkStroke.Thickness, afkStroke.Transparency, afkStroke.ApplyStrokeMode = Color3.fromRGB(180, 255, 180), 2, 0.05, Enum.ApplyStrokeMode.Border
+local afkLabel = Instance.new("TextLabel", afkFrame)
+afkLabel.Size, afkLabel.Position, afkLabel.BackgroundTransparency = UDim2.new(1, -20, 1, -10), UDim2.new(0, 10, 0, 5), 1
+afkLabel.Text = "✅ Anti-Afk Executed. You can now afk without being kicked. So sybau there—— [Job Application🧾]"
+afkLabel.Font, afkLabel.TextSize, afkLabel.TextColor3 = Enum.Font.GothamSemibold, 15, Color3.fromRGB(240, 255, 240)
+afkLabel.TextXAlignment, afkLabel.ZIndex = Enum.TextXAlignment.Left, 11
+TweenService:Create(afkFrame, TweenInfo.new(2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0, 50)}):Play()
+task.delay(10, function() local out = TweenService:Create(afkFrame, TweenInfo.new(2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0, -150)}); out:Play(); out.Completed:Wait(); afkGui:Destroy() end)
+
+-- [[ 💾 GLOBAL ENGINE & CONFIG SAVER ]] --
 _G.Hive = {
-    Running = true,
-    BoxUpgrader = false,
-    AutoSellEnabled = false,
-    AutoSellLimit = 10,
-    IsSelling = false, -- Prevents overlapping sell loops
-    AutoUpgrade = false,
-    HourlyReward = false,
-    BotKill = false,
-    GunName = "Deagle",
-    InvisibleSippa = false,
-    VisibleSippa = false,
-    AirdropSniper = false,
-    DiscordLink = "https://discord.gg/FFGjjcwwS",
-    MyTycoon = nil
+    Running = true, BoxUpgrader = false, AutoSellEnabled = false, AutoSellLimit = 10,
+    IsSelling = false, AutoUpgrade = false, HourlyReward = false, BotKill = false,
+    GunName = "Deagle", InvisibleSippa = false, VisibleSippa = false, AirdropSniper = false,
+    ProximityHop = false, DiscordLink = "https://discord.gg/FFGjjcwwS", MyTycoon = nil
 }
+
+local ConfigName = "HiveV71_Config.json"
+local function SaveConfig()
+    if writefile then
+        local data = {
+            BoxUpgrader = _G.Hive.BoxUpgrader, AutoSellEnabled = _G.Hive.AutoSellEnabled, AutoSellLimit = _G.Hive.AutoSellLimit,
+            AutoUpgrade = _G.Hive.AutoUpgrade, HourlyReward = _G.Hive.HourlyReward, BotKill = _G.Hive.BotKill, GunName = _G.Hive.GunName,
+            InvisibleSippa = _G.Hive.InvisibleSippa, VisibleSippa = _G.Hive.VisibleSippa, AirdropSniper = _G.Hive.AirdropSniper,
+            ProximityHop = _G.Hive.ProximityHop
+        }
+        writefile(ConfigName, HttpService:JSONEncode(data))
+    end
+end
+
+local function LoadConfig()
+    if readfile and isfile and isfile(ConfigName) then
+        local success, decoded = pcall(function() return HttpService:JSONDecode(readfile(ConfigName)) end)
+        if success and type(decoded) == "table" then
+            for k, v in pairs(decoded) do if _G.Hive[k] ~= nil then _G.Hive[k] = v end end
+        end
+    end
+end
+LoadConfig()
 
 task.spawn(function()
     while _G.Hive.Running do
@@ -43,55 +82,38 @@ task.spawn(function()
 end)
 
 for _, v in pairs(LocalPlayer.PlayerGui:GetChildren()) do if v.Name:find("Hive") or v.Name:find("Ozone") then v:Destroy() end end
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui); ScreenGui.Name, ScreenGui.ResetOnSpawn, ScreenGui.IgnoreGuiInset = "HiveV71_Master", false, true 
+local Theme = {Space = Color3.fromRGB(10, 10, 15), Text = Color3.fromRGB(220, 220, 220), Accent = Color3.fromRGB(150, 0, 255), PanelSize = UDim2.new(0, 580, 0, 400), ButtonTrans = 0.6, PanelTrans = 0.25}
 
-local ScreenGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
-ScreenGui.Name, ScreenGui.ResetOnSpawn = "HiveV70_Master", false
-ScreenGui.IgnoreGuiInset = true 
-
-local Theme = {
-    Space = Color3.fromRGB(10, 10, 15),
-    Text = Color3.fromRGB(220, 220, 220),
-    Accent = Color3.fromRGB(150, 0, 255), 
-    PanelSize = UDim2.new(0, 580, 0, 400),
-    ButtonTrans = 0.6,
-    PanelTrans = 0.25
-}
-
--- UI FACTORIES
-local function CreateToggle(parent, text, callback)
-    local Enabled = false
+-- [[ ⚙️ UI FACTORIES ]] --
+local function CreateToggle(parent, text, configKey)
+    local Enabled = _G.Hive[configKey]
     local b = Instance.new("TextButton", parent)
-    b.Size, b.BackgroundColor3 = UDim2.new(1, -10, 0, 45), Color3.fromRGB(30, 30, 40)
-    b.BackgroundTransparency, b.Text, b.TextColor3, b.TextSize = Theme.ButtonTrans, "   " .. text, Theme.Text, 15
+    b.Size, b.BackgroundColor3, b.BackgroundTransparency, b.Text, b.TextColor3, b.TextSize = UDim2.new(1, -10, 0, 45), Color3.fromRGB(30, 30, 40), Theme.ButtonTrans, "   " .. text, Theme.Text, 15
     b.Font, b.TextXAlignment, b.ZIndex = Enum.Font.GothamMedium, Enum.TextXAlignment.Left, 400
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
-    Instance.new("UIStroke", b).Color = Color3.new(1, 1, 1)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", b).Color = Color3.new(1, 1, 1)
 
     local Track = Instance.new("Frame", b)
-    Track.Size, Track.Position = UDim2.new(0, 42, 0, 22), UDim2.new(1, -55, 0.5, 0)
-    Track.AnchorPoint, Track.BackgroundColor3, Track.ZIndex = Vector2.new(0, 0.5), Color3.fromRGB(180, 40, 40), 401
+    Track.Size, Track.Position, Track.AnchorPoint, Track.BackgroundColor3, Track.ZIndex = UDim2.new(0, 42, 0, 22), UDim2.new(1, -55, 0.5, 0), Vector2.new(0, 0.5), Enabled and Color3.fromRGB(150, 40, 255) or Color3.fromRGB(180, 40, 40), 401
     Instance.new("UICorner", Track).CornerRadius = UDim.new(1, 0)
-
     local Knob = Instance.new("Frame", Track)
-    Knob.Size, Knob.Position = UDim2.new(0, 16, 0, 16), UDim2.new(0, 3, 0.5, 0) 
-    Knob.AnchorPoint, Knob.BackgroundColor3, Knob.ZIndex = Vector2.new(0, 0.5), Color3.new(1, 1, 1), 402
+    Knob.Size, Knob.Position, Knob.AnchorPoint, Knob.BackgroundColor3, Knob.ZIndex = UDim2.new(0, 16, 0, 16), Enabled and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0), Vector2.new(0, 0.5), Color3.new(1, 1, 1), 402
     Instance.new("UICorner", Knob).CornerRadius = UDim.new(1, 0)
 
     b.MouseButton1Click:Connect(function()
-        Enabled = not Enabled
+        Enabled = not Enabled; _G.Hive[configKey] = Enabled; SaveConfig()
         TweenService:Create(Track, TweenInfo.new(0.3), {BackgroundColor3 = Enabled and Color3.fromRGB(150, 40, 255) or Color3.fromRGB(180, 40, 40)}):Play()
         TweenService:Create(Knob, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = Enabled and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)}):Play()
-        callback(Enabled)
     end)
 end
 
-local function CreateSlider(parent, text, min, max, default, callback)
+local function CreateSlider(parent, text, min, max, configKey)
+    local default = _G.Hive[configKey]
     local frame = Instance.new("Frame", parent)
     frame.Size, frame.BackgroundColor3, frame.BackgroundTransparency = UDim2.new(1, -10, 0, 50), Color3.fromRGB(30, 30, 40), Theme.ButtonTrans
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     local label = Instance.new("TextLabel", frame)
-    label.Size, label.Position, label.BackgroundTransparency = UDim2.new(1, -20, 0, 20), UDim2.new(0, 10, 0, 5), 1
-    label.Text, label.TextColor3, label.Font, label.TextSize = text .. ": " .. default, Theme.Text, Enum.Font.GothamMedium, 14
+    label.Size, label.Position, label.BackgroundTransparency, label.Text, label.TextColor3, label.Font, label.TextSize = UDim2.new(1, -20, 0, 20), UDim2.new(0, 10, 0, 5), 1, text .. ": " .. default, Theme.Text, Enum.Font.GothamMedium, 14
     label.TextXAlignment, label.ZIndex = Enum.TextXAlignment.Left, 400
     local sliderBar = Instance.new("Frame", frame)
     sliderBar.Size, sliderBar.Position, sliderBar.BackgroundColor3, sliderBar.ZIndex = UDim2.new(1, -30, 0, 4), UDim2.new(0, 15, 1, -15), Color3.fromRGB(60, 60, 70), 400
@@ -105,32 +127,30 @@ local function CreateSlider(parent, text, min, max, default, callback)
     local function Update(input)
         local pos = math.clamp((input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X, 0, 1)
         local val = math.floor(min + (max - min) * pos)
-        fill.Size = UDim2.new(pos, 0, 1, 0); label.Text = text .. ": " .. val; callback(val)
+        fill.Size = UDim2.new(pos, 0, 1, 0); label.Text = text .. ": " .. val; _G.Hive[configKey] = val; SaveConfig()
     end
     trigger.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true; Update(i) end end)
     UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
     UserInputService.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then Update(i) end end)
 end
 
-local function CreateInput(parent, text, defaultText, callback)
+local function CreateInput(parent, text, configKey)
+    local defaultText = _G.Hive[configKey]
     local frame = Instance.new("Frame", parent)
     frame.Size, frame.BackgroundColor3, frame.BackgroundTransparency = UDim2.new(1, -10, 0, 45), Color3.fromRGB(30, 30, 40), Theme.ButtonTrans
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     local label = Instance.new("TextLabel", frame)
-    label.Size, label.Position, label.BackgroundTransparency = UDim2.new(0.4, 0, 1, 0), UDim2.new(0, 15, 0, 0), 1
-    label.Text, label.TextColor3, label.Font, label.TextSize = text, Theme.Text, Enum.Font.GothamMedium, 14
+    label.Size, label.Position, label.BackgroundTransparency, label.Text, label.TextColor3, label.Font, label.TextSize = UDim2.new(0.4, 0, 1, 0), UDim2.new(0, 15, 0, 0), 1, text, Theme.Text, Enum.Font.GothamMedium, 14
     label.TextXAlignment, label.ZIndex = Enum.TextXAlignment.Left, 400
     local box = Instance.new("TextBox", frame)
-    box.Size, box.Position, box.BackgroundColor3, box.TextColor3 = UDim2.new(0.5, 0, 0, 25), UDim2.new(0.45, 0, 0.5, -12.5), Color3.fromRGB(15, 15, 20), Theme.Accent
-    box.Font, box.TextSize, box.Text, box.ZIndex = Enum.Font.GothamBold, 13, defaultText, 401
+    box.Size, box.Position, box.BackgroundColor3, box.TextColor3, box.Font, box.TextSize, box.Text, box.ZIndex = UDim2.new(0.5, 0, 0, 25), UDim2.new(0.45, 0, 0.5, -12.5), Color3.fromRGB(15, 15, 20), Theme.Accent, Enum.Font.GothamBold, 13, defaultText, 401
     Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4); Instance.new("UIStroke", box).Color = Color3.new(1,1,1)
-    box.FocusLost:Connect(function() callback(box.Text) end)
+    box.FocusLost:Connect(function() _G.Hive[configKey] = box.Text; SaveConfig() end)
 end
 
 local function CreateTextInfo(parent, text, bold)
     local l = Instance.new("TextLabel", parent)
-    l.Size, l.BackgroundTransparency = UDim2.new(1, -20, 0, 30), 1
-    l.Font, l.Text, l.TextColor3, l.TextSize, l.TextXAlignment, l.ZIndex = bold and Enum.Font.GothamBold or Enum.Font.Gotham, "  " .. text, Theme.Text, 14, Enum.TextXAlignment.Left, 400
+    l.Size, l.BackgroundTransparency, l.Font, l.Text, l.TextColor3, l.TextSize, l.TextXAlignment, l.ZIndex = UDim2.new(1, -20, 0, 30), 1, bold and Enum.Font.GothamBold or Enum.Font.Gotham, "  " .. text, Theme.Text, 14, Enum.TextXAlignment.Left, 400
 end
 
 local WorldThemes = {
@@ -143,41 +163,26 @@ local WorldThemes = {
     ["⚙️"] = {Col1 = Color3.fromRGB(120, 130, 150), Name = "SETTINGS"}
 }
 
-local MainGroup = Instance.new("Frame", ScreenGui)
-MainGroup.Size, MainGroup.BackgroundTransparency, MainGroup.Visible = UDim2.new(1, 0, 1, 0), 1, true
+local MainGroup = Instance.new("Frame", ScreenGui); MainGroup.Size, MainGroup.BackgroundTransparency, MainGroup.Visible = UDim2.new(1, 0, 1, 0), 1, true
+local CategoryPanel = Instance.new("Frame", ScreenGui); CategoryPanel.Size, CategoryPanel.Position, CategoryPanel.AnchorPoint, CategoryPanel.BackgroundColor3, CategoryPanel.Visible, CategoryPanel.ZIndex, CategoryPanel.ClipsDescendants, CategoryPanel.BackgroundTransparency = UDim2.new(0, 0, 0, 0), UDim2.new(0.5, 0, 0.48, 0), Vector2.new(0.5, 0.5), Theme.Space, false, 300, true, Theme.PanelTrans 
+Instance.new("UICorner", CategoryPanel).CornerRadius = UDim.new(0, 12); Instance.new("UIStroke", CategoryPanel).Color = Theme.Accent
 
-local CategoryPanel = Instance.new("Frame", ScreenGui)
-CategoryPanel.Size, CategoryPanel.Position = UDim2.new(0, 0, 0, 0), UDim2.new(0.5, 0, 0.48, 0)
-CategoryPanel.AnchorPoint, CategoryPanel.BackgroundColor3 = Vector2.new(0.5, 0.5), Theme.Space
-CategoryPanel.Visible, CategoryPanel.ZIndex, CategoryPanel.ClipsDescendants = false, 300, true
-CategoryPanel.BackgroundTransparency = Theme.PanelTrans 
-Instance.new("UICorner", CategoryPanel).CornerRadius = UDim.new(0, 12)
-Instance.new("UIStroke", CategoryPanel).Color = Theme.Accent
-
-local StarField = Instance.new("Frame", CategoryPanel)
-StarField.Size, StarField.BackgroundTransparency, StarField.ZIndex = UDim2.new(1, 0, 1, 0), 1, 301
+local StarField = Instance.new("Frame", CategoryPanel); StarField.Size, StarField.BackgroundTransparency, StarField.ZIndex = UDim2.new(1, 0, 1, 0), 1, 301
 local StaticStars = {}
 for i = 1, 100 do
     local s = Instance.new("Frame", StarField)
-    s.Size, s.Position = UDim2.new(0, math.random(1, 2), 0, math.random(1, 2)), UDim2.new(math.random(), 0, math.random(), 0)
-    s.BackgroundColor3, s.ZIndex, s.BorderSizePixel = Color3.new(1, 1, 1), 302, 0
-    Instance.new("UICorner", s).CornerRadius = UDim.new(1, 0)
-    table.insert(StaticStars, {Frame = s, Speed = math.random(5, 15) / 1000})
+    s.Size, s.Position, s.BackgroundColor3, s.ZIndex, s.BorderSizePixel = UDim2.new(0, math.random(1, 2), 0, math.random(1, 2)), UDim2.new(math.random(), 0, math.random(), 0), Color3.new(1, 1, 1), 302, 0
+    Instance.new("UICorner", s).CornerRadius = UDim.new(1, 0); table.insert(StaticStars, {Frame = s, Speed = math.random(5, 15) / 1000})
 end
 
-local ViewportContainer = Instance.new("Frame", CategoryPanel)
-ViewportContainer.Size, ViewportContainer.Position, ViewportContainer.BackgroundTransparency, ViewportContainer.ZIndex = UDim2.new(0, 230, 0, 260), UDim2.new(0, 15, 0, 20), 1, 310
-local ViewportFrame = Instance.new("ViewportFrame", ViewportContainer)
-ViewportFrame.Size, ViewportFrame.BackgroundTransparency, ViewportFrame.ZIndex = UDim2.new(1, 0, 1, 0), 1, 311
+local ViewportContainer = Instance.new("Frame", CategoryPanel); ViewportContainer.Size, ViewportContainer.Position, ViewportContainer.BackgroundTransparency, ViewportContainer.ZIndex = UDim2.new(0, 230, 0, 260), UDim2.new(0, 15, 0, 20), 1, 310
+local ViewportFrame = Instance.new("ViewportFrame", ViewportContainer); ViewportFrame.Size, ViewportFrame.BackgroundTransparency, ViewportFrame.ZIndex = UDim2.new(1, 0, 1, 0), 1, 311
 
 local TabFolders = {}
 for _, data in pairs(WorldThemes) do
     local f = Instance.new("ScrollingFrame", CategoryPanel)
-    f.Name, f.Visible, f.BackgroundTransparency = data.Name, false, 1
-    f.Size, f.Position = (data.Name == "PLAYER") and UDim2.new(1, -260, 1, -40) or UDim2.new(1, -40, 1, -40), (data.Name == "PLAYER") and UDim2.new(0, 245, 0, 20) or UDim2.new(0, 20, 0, 20)
-    f.ScrollBarThickness, f.ZIndex = 2, 350
-    local layout = Instance.new("UIListLayout", f)
-    layout.Padding = UDim.new(0, 10)
+    f.Name, f.Visible, f.BackgroundTransparency, f.Size, f.Position, f.ScrollBarThickness, f.ZIndex = data.Name, false, 1, (data.Name == "PLAYER") and UDim2.new(1, -260, 1, -40) or UDim2.new(1, -40, 1, -40), (data.Name == "PLAYER") and UDim2.new(0, 245, 0, 20) or UDim2.new(0, 20, 0, 20), 2, 350
+    local layout = Instance.new("UIListLayout", f); layout.Padding = UDim.new(0, 10)
     layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() f.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 20) end)
     TabFolders[data.Name] = f
 end
@@ -185,17 +190,13 @@ end
 local function UpdateViewport()
     ViewportFrame:ClearAllChildren()
     if not LocalPlayer.Character then return end
-    local WorldModel = Instance.new("WorldModel", ViewportFrame)
-    LocalPlayer.Character.Archivable = true
-    local CharClone = LocalPlayer.Character:Clone()
-    CharClone.Parent = WorldModel
-    local Cam = Instance.new("Camera", ViewportFrame)
-    Cam.FieldOfView = 35 
+    local WorldModel = Instance.new("WorldModel", ViewportFrame); LocalPlayer.Character.Archivable = true
+    local CharClone = LocalPlayer.Character:Clone(); CharClone.Parent = WorldModel
+    local Cam = Instance.new("Camera", ViewportFrame); Cam.FieldOfView = 35 
     local hrp = CharClone:FindFirstChild("HumanoidRootPart")
     if hrp then Cam.CFrame = CFrame.new(hrp.Position + (hrp.CFrame.LookVector * 5.5) + Vector3.new(0, 1.5, 0), hrp.Position + Vector3.new(0, 1.5, 0)); ViewportFrame.CurrentCamera = Cam end
 end
--- [[ HIVE V70.1 SURGICAL - PART 2 ]] --
-
+-- [[ HIVE V71 AUTONOMOUS MASTER SCRIPT - PART 2 ]] --
 local function SellAllBoxes(tycoon)
     local boxFolder = tycoon:FindFirstChild("FullBoxes", true)
     local sellPad = workspace:FindFirstChild("BoxDropoffs") and workspace.BoxDropoffs:FindFirstChild("Dropoff1") and workspace.BoxDropoffs.Dropoff1:FindFirstChild("PayPart")
@@ -207,62 +208,102 @@ local function SellAllBoxes(tycoon)
     end
 end
 
--- 📌 TABS
-CreateToggle(TabFolders["PLAYER"], "Invisible Sippa", function(s) _G.Hive.InvisibleSippa = s end)
-CreateToggle(TabFolders["PLAYER"], "Visible Sippa", function(s) _G.Hive.VisibleSippa = s end)
+-- 📌 POPULATING TABS
+CreateToggle(TabFolders["PLAYER"], "Invisible Sippa", "InvisibleSippa")
+CreateToggle(TabFolders["PLAYER"], "Visible Sippa", "VisibleSippa")
 
-CreateToggle(TabFolders["FARM"], "Box Upgrader (2.7s Tracker)", function(s) _G.Hive.BoxUpgrader = s end)
-CreateToggle(TabFolders["FARM"], "Auto-Sell Boxes (5s Delay)", function(s) _G.Hive.AutoSellEnabled = s end)
-CreateSlider(TabFolders["FARM"], "Auto-Sell Limit", 1, 32, 10, function(v) _G.Hive.AutoSellLimit = v end)
+CreateToggle(TabFolders["FARM"], "Box Upgrader (2.7s Tracker)", "BoxUpgrader")
+CreateToggle(TabFolders["FARM"], "Auto-Sell Boxes (5s Delay)", "AutoSellEnabled")
+CreateSlider(TabFolders["FARM"], "Auto-Sell Limit", 1, 32, "AutoSellLimit")
+
 local SellAllBtn = Instance.new("TextButton", TabFolders["FARM"])
-SellAllBtn.Size, SellAllBtn.BackgroundColor3, SellAllBtn.BackgroundTransparency = UDim2.new(1, -10, 0, 45), Color3.fromRGB(200, 150, 0), Theme.ButtonTrans
-SellAllBtn.Text, SellAllBtn.TextColor3, SellAllBtn.Font, SellAllBtn.ZIndex = "SELL ALL BOXES NOW", Color3.new(1,1,1), Enum.Font.GothamBold, 400
+SellAllBtn.Size, SellAllBtn.BackgroundColor3, SellAllBtn.BackgroundTransparency, SellAllBtn.Text, SellAllBtn.TextColor3, SellAllBtn.Font, SellAllBtn.ZIndex = UDim2.new(1, -10, 0, 45), Color3.fromRGB(200, 150, 0), Theme.ButtonTrans, "SELL ALL BOXES NOW", Color3.new(1,1,1), Enum.Font.GothamBold, 400
 Instance.new("UICorner", SellAllBtn).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", SellAllBtn).Color = Color3.new(1, 1, 1)
 SellAllBtn.MouseButton1Click:Connect(function() if _G.Hive.MyTycoon then SellAllBoxes(_G.Hive.MyTycoon) end end)
-CreateToggle(TabFolders["FARM"], "Auto-Upgrade Tycoon", function(s) _G.Hive.AutoUpgrade = s end)
-CreateToggle(TabFolders["FARM"], "Auto-Claim Hourly Reward", function(s) _G.Hive.HourlyReward = s end)
 
-CreateToggle(TabFolders["WORLD"], "Airdrop Claimer (Ghost TP)", function(s) _G.Hive.AirdropSniper = s end)
+CreateToggle(TabFolders["FARM"], "Auto-Upgrade Tycoon", "AutoUpgrade")
+CreateToggle(TabFolders["FARM"], "Auto-Claim Hourly Reward", "HourlyReward")
 
-CreateInput(TabFolders["PVP"], "Gun Name:", "Deagle", function(val) _G.Hive.GunName = val end)
-CreateToggle(TabFolders["PVP"], "Auto-Kill Bots", function(s) _G.Hive.BotKill = s end)
+CreateToggle(TabFolders["WORLD"], "Airdrop Claimer (Ghost TP)", "AirdropSniper")
+CreateToggle(TabFolders["WORLD"], "Proximity Server Hop (55 Studs)", "ProximityHop")
 
-CreateTextInfo(TabFolders["INFO"], "HIVE SYSTEM: ONLINE", true)
+CreateInput(TabFolders["PVP"], "Gun Name:", "GunName")
+CreateToggle(TabFolders["PVP"], "Auto-Kill Bots", "BotKill")
+
+CreateTextInfo(TabFolders["INFO"], "HIVE SYSTEM: AUTONOMOUS", true)
 CreateTextInfo(TabFolders["INFO"], "TARGET: COUNTERFEIT TYCOON", false)
-CreateTextInfo(TabFolders["INFO"], "PATCH: V70.1 SURGICAL FIXES", false)
+CreateTextInfo(TabFolders["INFO"], "PATCH: V71 SERVER HOP", false)
 
 CreateTextInfo(TabFolders["EXTRA"], "DEVELOPED BY: Fkdaf3dz", true)
-CreateTextInfo(TabFolders["EXTRA"], "FRAMEWORK: HIVE ARCHITECTURE", false)
 
 local DiscordBtn = Instance.new("TextButton", TabFolders["EXTRA"])
-DiscordBtn.Size, DiscordBtn.BackgroundColor3, DiscordBtn.BackgroundTransparency = UDim2.new(1, -10, 0, 45), Color3.fromRGB(88, 101, 242), Theme.ButtonTrans
-DiscordBtn.Text, DiscordBtn.TextColor3, DiscordBtn.Font, DiscordBtn.ZIndex = "COPY DISCORD LINK", Color3.new(1,1,1), Enum.Font.GothamBold, 400
+DiscordBtn.Size, DiscordBtn.BackgroundColor3, DiscordBtn.BackgroundTransparency, DiscordBtn.Text, DiscordBtn.TextColor3, DiscordBtn.Font, DiscordBtn.ZIndex = UDim2.new(1, -10, 0, 45), Color3.fromRGB(88, 101, 242), Theme.ButtonTrans, "COPY DISCORD LINK", Color3.new(1,1,1), Enum.Font.GothamBold, 400
 Instance.new("UICorner", DiscordBtn).CornerRadius = UDim.new(0, 8)
-DiscordBtn.MouseButton1Click:Connect(function()
-    if setclipboard then 
-        setclipboard(_G.Hive.DiscordLink) 
-        DiscordBtn.Text = "COPIED TO CLIPBOARD!"
-        task.wait(2)
-        DiscordBtn.Text = "COPY DISCORD LINK"
-    else
-        DiscordBtn.Text = "EXPLOIT DOES NOT SUPPORT COPY"
-    end
-end)
+DiscordBtn.MouseButton1Click:Connect(function() if setclipboard then setclipboard(_G.Hive.DiscordLink); DiscordBtn.Text = "COPIED TO CLIPBOARD!"; task.wait(2); DiscordBtn.Text = "COPY DISCORD LINK" end end)
 
 local KillBtn = Instance.new("TextButton", TabFolders["SETTINGS"])
-KillBtn.Size, KillBtn.BackgroundColor3, KillBtn.BackgroundTransparency = UDim2.new(1, -10, 0, 45), Color3.fromRGB(180, 40, 40), Theme.ButtonTrans
-KillBtn.Text, KillBtn.TextColor3, KillBtn.Font, KillBtn.ZIndex = "DESTROY HIVE GUI", Color3.new(1,1,1), Enum.Font.GothamBold, 400
+KillBtn.Size, KillBtn.BackgroundColor3, KillBtn.BackgroundTransparency, KillBtn.Text, KillBtn.TextColor3, KillBtn.Font, KillBtn.ZIndex = UDim2.new(1, -10, 0, 45), Color3.fromRGB(180, 40, 40), Theme.ButtonTrans, "DESTROY HIVE GUI", Color3.new(1,1,1), Enum.Font.GothamBold, 400
 Instance.new("UICorner", KillBtn).CornerRadius = UDim.new(0, 8)
 KillBtn.MouseButton1Click:Connect(function() _G.Hive.Running = false; ScreenGui:Destroy() end)
 
+-- 🛡️ BULLETPROOF SERVER HOPPER
+local function ServerHop()
+    local queueEvent = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+    if queueEvent then
+        queueEvent('loadstring(game:HttpGet("https://raw.githubusercontent.com/fkdaf3dz/CFT/refs/heads/main/CFT"))()')
+        warn("🔄 HIVE: Loadstring queued for next server.")
+    else
+        warn("⚠️ HIVE: queue_on_teleport not supported by this executor. Script will not auto-run on hop.")
+    end
+
+    task.spawn(function()
+        while _G.Hive.Running do
+            local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")) end)
+            if success and result and result.data then
+                local validServers = {}
+                for _, server in ipairs(result.data) do
+                    if server.playing < server.maxPlayers - 1 and server.id ~= game.JobId then table.insert(validServers, server) end
+                end
+                if #validServers > 0 then
+                    local targetServer = validServers[math.random(1, #validServers)]
+                    warn("🚀 HIVE: Evading to Server ID: " .. string.sub(targetServer.id, 1, 8) .. "...")
+                    local tpSuccess, tpError = pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, targetServer.id, LocalPlayer) end)
+                    if not tpSuccess then warn("⚠️ HIVE TP Error: " .. tostring(tpError)) end
+                else
+                    warn("⚠️ HIVE: No open servers found. Retrying...")
+                end
+            else
+                warn("⚠️ HIVE: Roblox API Rate Limit hit. Waiting to retry...")
+            end
+            task.wait(4)
+        end
+    end)
+end
+
 -- 🧠 MASTER HIVE LOOP
-local lastInvSippa, lastVisSippa, lastReward = 0, 0, 0
+local lastInvSippa, lastVisSippa, lastReward, lastHopCheck = 0, 0, 0, 0
 task.spawn(function()
     while _G.Hive.Running do
         task.wait(0.1)
         local t = tick()
         
-        -- 1. BOX UPGRADER (Direct CFrame Teleport after 2.7s)
+        -- PROXIMITY HOPPER
+        if _G.Hive.ProximityHop and _G.Hive.MyTycoon and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (t - lastHopCheck >= 2) then
+            local myPos = LocalPlayer.Character.HumanoidRootPart.Position
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    if (p.Character.HumanoidRootPart.Position - myPos).Magnitude <= 55 then
+                        _G.Hive.ProximityHop = false 
+                        warn("⚠️ PLAYER DETECTED IN PROXIMITY (" .. p.Name .. "). INITIATING EVASION.")
+                        ServerHop()
+                        break
+                    end
+                end
+            end
+            lastHopCheck = tick()
+        end
+
+        -- BOX UPGRADER
         if _G.Hive.BoxUpgrader and _G.Hive.MyTycoon then
             local boxes = _G.Hive.MyTycoon:FindFirstChild("FullBoxes", true)
             local machine = _G.Hive.MyTycoon:FindFirstChild("Colorizer1", true)
@@ -274,43 +315,30 @@ task.spawn(function()
                         task.spawn(function()
                             task.wait(2.7) 
                             local p = b:IsA("BasePart") and b or b:FindFirstChildWhichIsA("BasePart", true)
-                            if p and p.Parent and _G.Hive.BoxUpgrader then
-                                p.CFrame = upTarget.CFrame
-                                firetouchinterest(p, upTarget, 0); task.wait(0.05); firetouchinterest(p, upTarget, 1)
-                            end
+                            if p and p.Parent and _G.Hive.BoxUpgrader then p.CFrame = upTarget.CFrame; firetouchinterest(p, upTarget, 0); task.wait(0.05); firetouchinterest(p, upTarget, 1) end
                         end)
                     end
                 end
             end
         end
         
-        -- 2. AUTO-SELL (With 5s Delay)
+        -- AUTO-SELL
         if _G.Hive.AutoSellEnabled and _G.Hive.MyTycoon then
             local boxes = _G.Hive.MyTycoon:FindFirstChild("FullBoxes", true)
             if boxes and #boxes:GetChildren() >= _G.Hive.AutoSellLimit and not _G.Hive.IsSelling then
                 _G.Hive.IsSelling = true
-                task.spawn(function()
-                    task.wait(5) -- Waits 5s for the last boxes to finish Colorizer
-                    if _G.Hive.AutoSellEnabled then SellAllBoxes(_G.Hive.MyTycoon) end
-                    _G.Hive.IsSelling = false
-                end)
+                task.spawn(function() task.wait(5); if _G.Hive.AutoSellEnabled then SellAllBoxes(_G.Hive.MyTycoon) end; _G.Hive.IsSelling = false end)
             end
         end
         
-        -- 3. HOURLY REWARDS (RemoteFunction FIX)
+        -- HOURLY REWARDS
         if _G.Hive.HourlyReward and (t - lastReward >= 10) then
             local remote = game:GetService("ReplicatedStorage"):FindFirstChild("ClaimHourlyReward")
-            if remote then
-                if remote:IsA("RemoteFunction") then
-                    task.spawn(function() pcall(function() remote:InvokeServer() end) end)
-                elseif remote:IsA("RemoteEvent") then
-                    remote:FireServer()
-                end
-            end
+            if remote then if remote:IsA("RemoteFunction") then task.spawn(function() pcall(function() remote:InvokeServer() end) end) elseif remote:IsA("RemoteEvent") then remote:FireServer() end end
             lastReward = tick()
         end
 
-        -- 4. AUTO UPGRADE HUD
+        -- AUTO UPGRADE HUD
         if _G.Hive.AutoUpgrade then
             local shop = LocalPlayer.PlayerGui:FindFirstChild("TheUI")
             if shop then
@@ -328,7 +356,7 @@ task.spawn(function()
             end
         end
 
-        -- 5. SIPPAS
+        -- SIPPAS
         if _G.Hive.InvisibleSippa and (t - lastInvSippa >= 0.8) then
             local bp, ch = LocalPlayer.Backpack, LocalPlayer.Character
             local cola = bp:FindFirstChild("BloxyCola") or (ch and ch:FindFirstChild("BloxyCola"))
@@ -340,7 +368,7 @@ task.spawn(function()
             if cola and ch then cola.Parent = ch; cola:Activate(); task.delay(0.8, function() cola:Deactivate() end); lastVisSippa = tick() end
         end
         
-        -- 6. BOT KILLER
+        -- BOT KILLER
         if _G.Hive.BotKill and _G.Hive.MyTycoon then
             local npcs = _G.Hive.MyTycoon:FindFirstChild("ActiveNpcs", true)
             local tool = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(_G.Hive.GunName)) or LocalPlayer.Backpack:FindFirstChild(_G.Hive.GunName)
@@ -352,7 +380,7 @@ task.spawn(function()
             end
         end
         
-        -- 7. AIRDROP GHOST TP (Anti-Cheat Bypass)
+        -- AIRDROP GHOST TP
         if _G.Hive.AirdropSniper and LocalPlayer.Character then
             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             local nodes = workspace:FindFirstChild("AirdropNodes")
@@ -360,14 +388,10 @@ task.spawn(function()
                 for _, prompt in pairs(nodes:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.Parent and prompt.Parent:IsA("BasePart") then
                         local origCFrame = hrp.CFrame
-                        hrp.Anchored = true -- Prevents velocity spikes
+                        hrp.Anchored = true 
                         hrp.CFrame = prompt.Parent.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.2)
-                        fireproximityprompt(prompt)
-                        task.wait(0.2)
-                        hrp.CFrame = origCFrame
-                        hrp.Anchored = false
-                        task.wait(5) 
+                        task.wait(0.2); fireproximityprompt(prompt); task.wait(0.2)
+                        hrp.CFrame = origCFrame; hrp.Anchored = false; task.wait(5) 
                     end
                 end
             end
@@ -375,7 +399,7 @@ task.spawn(function()
     end
 end)
 
--- INTERACTION UI
+-- UI INTERACTION (THE EARTH)
 local OrbitActive, Dragging, DragMoved, BasePos, DragStart, StartPos = false, false, false, UDim2.new(0.5, 0, 0.48, 0), nil, nil
 local Core = Instance.new("TextButton", MainGroup)
 Core.Size, Core.Position, Core.BackgroundTransparency, Core.Text, Core.TextSize, Core.ZIndex, Core.AnchorPoint = UDim2.new(0, 90, 0, 90), BasePos, 1, "🌎", 75, 200, Vector2.new(0.5, 0.5)
@@ -411,11 +435,10 @@ RunService.RenderStepped:Connect(function(dt)
         if p.Btn.Visible then
             local angle = (t * 0.5) + (i * (math.pi * 2 / #Planets))
             local sA, dist = math.sin(angle), (220 + (math.sin(angle) * 50)) * p.Proxy.Value
-            p.Btn.Size = UDim2.new(0, (68 + (sA * 18)) * p.Proxy.Value, 0, (68 + (sA * 18)) * p.Proxy.Value)
-            p.Btn.Position = UDim2.new(Core.Position.X.Scale, Core.Position.X.Offset + (math.cos(angle)*dist), Core.Position.Y.Scale, Core.Position.Y.Offset + (sA*dist*0.45))
+            p.Btn.Size, p.Btn.Position = UDim2.new(0, (68 + (sA * 18)) * p.Proxy.Value, 0, (68 + (sA * 18)) * p.Proxy.Value), UDim2.new(Core.Position.X.Scale, Core.Position.X.Offset + (math.cos(angle)*dist), Core.Position.Y.Scale, Core.Position.Y.Offset + (sA*dist*0.45))
         end
     end
-    if CategoryPanel.Visible then
+    if CategoryPanel.Visible and StarField.Visible then
         for _, s in ipairs(StaticStars) do
             local nX = s.Frame.Position.X.Scale - (s.Speed * dt)
             s.Frame.Position = UDim2.new(nX < 0 and 1 or nX, 0, s.Frame.Position.Y.Scale, 0)
@@ -435,5 +458,4 @@ Core.MouseButton1Click:Connect(function()
     end
 end)
 
-print("🐝 HIVE V70.1 COMPLETE: Ghost TP & 5s Sell Delay Active.")
-
+print("🐝 HIVE V71 DEPLOYED. Autonomous protocols active.")
